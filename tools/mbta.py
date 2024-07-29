@@ -36,9 +36,12 @@ r = requests.get('https://api-v3.mbta.com/alerts?page%5Boffset%5D=0&page%5Blimit
 r = json.loads(r.text)'''
 
 def _time_to_now(schedule):
-    parsed_times = [time.strptime(s.arrival_time[:-6], '%Y-%m-%dT%H:%M:%S') for s in schedule.iloc]
-    parsed_times = [int((time.mktime(a) - time.time())/60) for a in parsed_times]
-    schedule['wait'] = parsed_times
+    try:
+        parsed_times = [time.strptime(s.arrival_time[:-6], '%Y-%m-%dT%H:%M:%S') for s in schedule.iloc]
+        parsed_times = [int((time.mktime(a) - time.time())/60) for a in parsed_times]
+        schedule['wait'] = parsed_times
+    except:
+        schedule['wait'] = [[] for _ in schedule.iloc]
     return schedule
 
 def schedule_by_stop_id(x, current_time=None):
@@ -87,21 +90,41 @@ class Stops:
         distlon = np.array([(sl - lon) * (69.18583 * np.cos(lat * np.pi / 180)) for sl in statlon.iloc])
         df['dist'] = np.sqrt(distlat**2 + distlon**2)
         if full:
-            return df
+            return df[df.dist < dist]
         else:
-            return self._clean_view(df[df.dist < dist])
-    
-    def _clean_view(self, df):
-        if 'dist' in df.columns:
-            return df[['name', 'description', 'dist']]
-        else:
-            return df[['name', 'description']]
+            return _clean_view(df[df.dist < dist])
         
     def _filter_vehicle(self, df, vehicle):
         if vehicle=='rapid': df = df[df.vehicle_type.between(0,1)]
         elif vehicle=='commuter': df = df[df.vehicle_type==2]
         elif vehicle=='bus': df = df[df.vehicle_type==3]
         return df
+    
+class Routes:
+    def __init__(self):
+        self._refresh()
+
+    def _refresh(self):
+        routes = requests.get('https://api-v3.mbta.com/routes')
+        route_info = pd.DataFrame.from_dict(json.loads(routes.text)['data'])
+        stop_info = _normalize_and_drop(stop_info, ['attributes', 'links', 'relationships'])
+        stop_info.set_index('id', inplace=True)
+        stop_info.fillna(-1, inplace=True)
+        stop_info.vehicle_type = stop_info.vehicle_type.astype(int)
+        self.info = stop_info
+
+class Schedules:
+    def __init__(self):
+        pass
+    
+def _clean_view(df):
+    if 'dist' in df.columns:
+        return df[['name', 'description', 'dist']]
+    else:
+        return df[['name', 'description']]
+    
+def lookup_route_for_stops(id):
+    pass
         
 def schedule_for_stops(stops_df, next_min=30):
     stops_df['waits'] = [schedule_by_stop_id(i)['wait'].sort_values() for i in stops_df.index]
