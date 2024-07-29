@@ -4,10 +4,23 @@ import requests
 import json
 import time
 from copy import deepcopy
+import yaml
+
+try:
+    with open('api.yaml') as f:
+        api_key = yaml.safe_load(f)['mbta-key']
+except:
+    api_key = None
+
+def request(request, api_key=api_key):
+    if api_key is None:
+        return requests.get(request)
+    else:
+        return requests.get(request, headers={'x-api-key': api_key})
 
 def _get_stop_name(id):
     try:
-        stp = requests.get('https://api-v3.mbta.com/stops/%s' % str(id))
+        stp = request('https://api-v3.mbta.com/stops/%s' % str(id))
         stop_dict = json.loads(stp.text)['data']['attributes']
         return stop_dict
     except:
@@ -15,7 +28,7 @@ def _get_stop_name(id):
     
 def _get_stop_name(id):
     try:
-        stp = requests.get('https://api-v3.mbta.com/stops/%s' % str(id))
+        stp = request('https://api-v3.mbta.com/stops/%s' % str(id))
         stop_dict = json.loads(stp.text)['data']['attributes']
         return stop_dict
     except:
@@ -51,7 +64,7 @@ def schedule_by_stop_id(x, current_time=None):
     else:
         h, m = current_time.split(':')
     link = 'https://api-v3.mbta.com/schedules?filter%5Bmin_time%5D={}%3A{}&filter%5Bstop%5D={}'.format(h, m, x)
-    schedule = requests.get(link)
+    schedule = request(link)
     schedule = pd.DataFrame.from_dict(json.loads(schedule.text)['data'])
     schedule = _normalize_and_drop(schedule, ['attributes', 'relationships'])
     schedule = _time_to_now(schedule)
@@ -62,7 +75,7 @@ class Stops:
         self._refresh()
 
     def _refresh(self):
-        stops = requests.get('https://api-v3.mbta.com/stops')
+        stops = request('https://api-v3.mbta.com/stops')
         stop_info = pd.DataFrame.from_dict(json.loads(stops.text)['data'])
         stop_info = _normalize_and_drop(stop_info, ['attributes', 'links', 'relationships'])
         stop_info.set_index('id', inplace=True)
@@ -105,13 +118,13 @@ class Routes:
         self._refresh()
 
     def _refresh(self):
-        routes = requests.get('https://api-v3.mbta.com/routes')
+        routes = request('https://api-v3.mbta.com/routes')
         route_info = pd.DataFrame.from_dict(json.loads(routes.text)['data'])
-        stop_info = _normalize_and_drop(stop_info, ['attributes', 'links', 'relationships'])
-        stop_info.set_index('id', inplace=True)
-        stop_info.fillna(-1, inplace=True)
-        stop_info.vehicle_type = stop_info.vehicle_type.astype(int)
-        self.info = stop_info
+        route_info = _normalize_and_drop(route_info, ['attributes', 'links', 'relationships'])
+        route_info.set_index('id', inplace=True)
+        route_info.fillna(-1, inplace=True)
+        route_info.vehicle_type = route_info.vehicle_type.astype(int)
+        self.info = route_info
 
 class Schedules:
     def __init__(self):
@@ -124,9 +137,16 @@ def _clean_view(df):
         return df[['name', 'description']]
     
 def lookup_route_for_stops(id):
-    pass
+    routes = request('https://api-v3.mbta.com/routes?filter%5Bstop%5D={}'.format(id))
+    route_info = pd.DataFrame.from_dict(json.loads(routes.text)['data'])
+    route_info = _normalize_and_drop(route_info, ['attributes', 'links', 'relationships'])
+    return route_info
         
 def schedule_for_stops(stops_df, next_min=30):
-    stops_df['waits'] = [schedule_by_stop_id(i)['wait'].sort_values() for i in stops_df.index]
+    routes = [lookup_route_for_stops(i) for i in stops_df.index]
+    schedules = [schedule_by_stop_id(i) for i in stops_df.index]
+    stops_df['route'] = [r['id'][0] for r in routes]
+    stops_df['waits'] = [s['wait'].sort_values() for s in schedules]
     stops_df['waits'] = [np.array(a)[a<next_min] for a in stops_df['waits']]
-    return stops_df
+    stops_df['direction'] = [r['direction_destinations'][0][s['direction_id'][0]] for r, s in zip(routes, schedules)]
+    return stops_df[['name', 'route', 'direction', 'dist', 'waits']].sort_values('dist')
