@@ -148,5 +148,6 @@ def schedule_for_stops(stops_df, next_min=30):
     stops_df['route'] = [r['id'][0] for r in routes]
     stops_df['waits'] = [s['wait'].sort_values() for s in schedules]
     stops_df['waits'] = [np.array(a)[a<next_min] for a in stops_df['waits']]
-    stops_df['direction'] = [r['direction_destinations'][0][s['direction_id'][0]] for r, s in zip(routes, schedules)]
-    return stops_df[['name', 'route', 'direction', 'dist', 'waits']].sort_values('dist')
+    stops_df['direction'] = [r['direction_names'][0][s['direction_id'][0]] for r, s in zip(routes, schedules)]
+    stops_df['toward'] = [r['direction_destinations'][0][s['direction_id'][0]] for r, s in zip(routes, schedules)]
+    return stops_df[['name', 'route', 'direction', 'toward', 'dist', 'waits']].sort_values('dist')
