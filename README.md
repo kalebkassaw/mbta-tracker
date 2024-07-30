@@ -6,6 +6,7 @@ Current functionality is limited; this will expand over time. Some things we wil
 - Ferry tracking
 - Graphical interface for Raspberry Pi/display header
 
+Sample output (see ```demo.ipynb``` for details):
 <table border=\"1\" class=\"dataframe\">
   <thead>
     <tr style=\"text-align: right;\">
