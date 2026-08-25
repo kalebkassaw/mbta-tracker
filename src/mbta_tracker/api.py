@@ -1,10 +1,11 @@
+import os
+import time
+from copy import deepcopy
+
+import dotenv
 import numpy as np
 import pandas as pd
 import requests
-import time
-from copy import deepcopy
-import dotenv
-import os
 from loguru import logger
 
 dotenv.load_dotenv()
@@ -49,7 +50,7 @@ def _time_to_now(schedule):
         times = pd.to_datetime(schedule["arrival_time"], utc=True)
         now = pd.Timestamp.now(tz="UTC")
         schedule["wait"] = ((times - now).dt.total_seconds() / 60).astype(int)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Failed to compute wait times: {e}")
         schedule["wait"] = [[] for _ in schedule.iloc]
     return schedule
@@ -122,7 +123,9 @@ class Stops:
         try:
             stops = request("/stops")
             stop_info = pd.DataFrame.from_dict(stops.json()["data"])
-            stop_info = _normalize_and_drop(stop_info, ["attributes", "links", "relationships"])
+            stop_info = _normalize_and_drop(
+                stop_info, ["attributes", "links", "relationships"]
+            )
             stop_info.set_index("id", inplace=True)
             stop_info = stop_info.fillna(-1)
             stop_info.vehicle_type = stop_info.vehicle_type.astype(int)
@@ -183,7 +186,9 @@ class Routes:
         try:
             routes = request("/routes")
             route_info = pd.DataFrame.from_dict(routes.json()["data"])
-            route_info = _normalize_and_drop(route_info, ["attributes", "links", "relationships"])
+            route_info = _normalize_and_drop(
+                route_info, ["attributes", "links", "relationships"]
+            )
             route_info.set_index("id", inplace=True)
             route_info.fillna(-1, inplace=True)
             route_info.vehicle_type = route_info.vehicle_type.astype(int)
@@ -246,7 +251,11 @@ def schedule_for_stops(stops_df, next_min=30):
         if not stop_schedules.empty and "direction_id" in stop_schedules.columns:
             direction_id = stop_schedules["direction_id"].iloc[0]
 
-        attrs = route_row.get("attributes", {}) if isinstance(route_row.get("attributes"), dict) else {}
+        attrs = (
+            route_row.get("attributes", {})
+            if isinstance(route_row.get("attributes"), dict)
+            else {}
+        )
         direction_names = attrs.get("direction_names", [None, None])
         direction_destinations = attrs.get("direction_destinations", [None, None])
 
@@ -265,4 +274,6 @@ def schedule_for_stops(stops_df, next_min=30):
     stops_df["direction"] = direction_list
     stops_df["toward"] = toward_list
 
-    return stops_df[["name", "route", "direction", "toward", "dist", "waits"]].sort_values("dist")
+    return stops_df[
+        ["name", "route", "direction", "toward", "dist", "waits"]
+    ].sort_values("dist")
