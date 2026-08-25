@@ -95,11 +95,6 @@ def schedules_for_stop_ids(stop_ids, current_time=None):
     return schedule
 
 
-# Backwards-compatible single-stop wrapper.
-def schedule_by_stop_id(x, current_time=None):
-    return schedules_for_stop_ids([x], current_time=current_time)
-
-
 def routes_for_stop_ids(stop_ids):
     """Fetch routes serving one or many stop ids in a single API call."""
     if isinstance(stop_ids, (str, int)):
@@ -115,11 +110,6 @@ def routes_for_stop_ids(stop_ids):
         return pd.DataFrame()
 
     return pd.DataFrame.from_dict(data)
-
-
-# Backwards-compatible single-stop wrapper.
-def lookup_route_for_stops(id):
-    return routes_for_stop_ids([id])
 
 
 class Stops:
