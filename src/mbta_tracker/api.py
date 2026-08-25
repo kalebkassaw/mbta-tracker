@@ -46,13 +46,32 @@ def _normalize_and_drop(df, cols):
 
 
 def _time_to_now(schedule):
+    """
+    Compute minutes-from-now for each schedule row.
+
+    Not every schedule entry has an arrival_time (e.g. the first stop on a
+    trip may only have a departure_time), so we fall back to
+    departure_time when arrival_time is missing. Rows where neither is
+    parseable end up as NaN in 'wait' rather than raising, and are stored
+    as a nullable float/Int64 column so downstream numeric comparisons
+    (e.g. `waits < next_min`) keep working.
+    """
     try:
-        times = pd.to_datetime(schedule["arrival_time"], utc=True)
+        arrival = pd.to_datetime(
+            schedule.get("arrival_time"), utc=True, errors="coerce"
+        )
+        departure = pd.to_datetime(
+            schedule.get("departure_time"), utc=True, errors="coerce"
+        )
+        times = arrival.fillna(departure)
         now = pd.Timestamp.now(tz="UTC")
-        schedule["wait"] = ((times - now).dt.total_seconds() / 60).astype(int)
-    except Exception as e:  # noqa: BLE001
+        minutes = (times - now).dt.total_seconds() / 60
+        schedule["wait"] = (
+            minutes  # float, NaN-safe; leave as float rather than casting to int
+        )
+    except Exception as e:
         logger.warning(f"Failed to compute wait times: {e}")
-        schedule["wait"] = [[] for _ in schedule.iloc]
+        schedule["wait"] = np.nan
     return schedule
 
 
@@ -242,7 +261,12 @@ def schedule_for_stops(stops_df, next_min=30):
         route_id = route_row.get("id")
 
         if not stop_schedules.empty and "wait" in stop_schedules.columns:
-            waits = np.sort(stop_schedules["wait"].to_numpy())
+            waits = (
+                pd.to_numeric(stop_schedules["wait"], errors="coerce")
+                .dropna()
+                .to_numpy()
+            )
+            waits = np.sort(waits)
             waits = waits[waits < next_min]
         else:
             waits = np.array([])
