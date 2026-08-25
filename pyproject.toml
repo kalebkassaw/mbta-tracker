@@ -1,0 +1,25 @@
+[project]
+name = "mbta-tracker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Kaleb Kassaw", email = "kaleb@kassaw.xyz" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "ipykernel>=7.3.0",
+    "ipython>=9.16.1",
+    "loguru>=0.7.3",
+    "pandas>=3.0.5",
+    "python-dotenv>=1.2.3",
+    "pyyaml>=6.0.3",
+    "requests>=2.34.2",
+]
+
+[project.scripts]
+mbta-tracker = "mbta_tracker:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
