@@ -66,9 +66,7 @@ def _time_to_now(schedule):
         times = arrival.fillna(departure)
         now = pd.Timestamp.now(tz="UTC")
         minutes = (times - now).dt.total_seconds() / 60
-        schedule["wait"] = (
-            minutes  # float, NaN-safe; leave as float rather than casting to int
-        )
+        schedule["wait"] = round(minutes)
     except Exception as e:
         logger.warning(f"Failed to compute wait times: {e}")
         schedule["wait"] = np.nan
@@ -263,13 +261,15 @@ def schedule_for_stops(stops_df, next_min=30):
         if not stop_schedules.empty and "wait" in stop_schedules.columns:
             waits = (
                 pd.to_numeric(stop_schedules["wait"], errors="coerce")
+                .astype(int)
                 .dropna()
-                .to_numpy()
+                .to_list()
             )
-            waits = np.sort(waits)
-            waits = waits[waits < next_min]
+            waits = sorted(waits)
+            waits = [w for w in waits if w < next_min]
+            waits = ["ARR" if w < 1 else w for w in waits]
         else:
-            waits = np.array([])
+            waits = []
 
         direction_id = 0
         if not stop_schedules.empty and "direction_id" in stop_schedules.columns:
